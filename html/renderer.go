@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"path"
 	"regexp"
 	"sort"
 	"strconv"
@@ -50,6 +51,9 @@ const (
 
 var (
 	htmlTagRe = regexp.MustCompile("(?i)^" + htmlTag)
+	// Uniform Resource Identifier (URI): Generic Syntax
+	// - https://www.rfc-editor.org/rfc/rfc3986
+	uriSchemeRe = regexp.MustCompile(`^([a-zA-Z]+[a-zA-Z0-9.+-]*):`)
 )
 
 const (
@@ -80,8 +84,10 @@ type RenderNodeFunc func(w io.Writer, node ast.Node, entering bool) (ast.WalkSta
 // RendererOptions is a collection of supplementary parameters tweaking
 // the behavior of various parts of HTML renderer.
 type RendererOptions struct {
-	// Prepend this text to each relative URL.
-	AbsolutePrefix string
+	// Prepend this text to site relative URLs.
+	AbsoluteSitePrefix string
+	// Prepend this text to document relative URLs.
+	AbsoluteDocumentPrefix string
 	// Add this text to each footnote anchor, to ensure uniqueness.
 	FootnoteAnchorPrefix string
 	// Show this text inside the <a> tag for a footnote return link, if the
@@ -252,17 +258,24 @@ func isRelativeLink(link []byte) (yes bool) {
 	return false
 }
 
-func AddAbsPrefix(link []byte, prefix string) []byte {
-	if len(link) == 0 || len(prefix) == 0 {
-		return link
+func isAbsoluteLink(link []byte) (yes bool) {
+	return uriSchemeRe.Match(link)
+}
+
+func isSiteRelativeLink(link []byte) (yes bool) {
+	return len(link) > 0 && link[0] == '/'
+}
+
+func isDocumentRelativeLink(link []byte) (yes bool) {
+	return !isSiteRelativeLink(link) && !isAbsoluteLink(link)
+}
+
+func AddAbsPrefix(link []byte, sitePrefix, documentPrefix string) []byte {
+	if sitePrefix != "" && isSiteRelativeLink(link) {
+		return []byte(path.Join(sitePrefix, string(link)))
 	}
-	if isRelativeLink(link) && link[0] != '.' {
-		newDest := prefix
-		if link[0] != '/' {
-			newDest += "/"
-		}
-		newDest += string(link)
-		return []byte(newDest)
+	if documentPrefix != "" && isDocumentRelativeLink(link) {
+		return []byte(path.Join(documentPrefix, string(link)))
 	}
 	return link
 }
@@ -469,7 +482,7 @@ func (r *Renderer) HTMLSpan(w io.Writer, span *ast.HTMLSpan) {
 func (r *Renderer) linkEnter(w io.Writer, link *ast.Link) {
 	attrs := link.AdditionalAttributes
 	dest := link.Destination
-	dest = AddAbsPrefix(dest, r.Opts.AbsolutePrefix)
+	dest = AddAbsPrefix(dest, r.Opts.AbsoluteSitePrefix, r.Opts.AbsoluteDocumentPrefix)
 	var hrefBuf bytes.Buffer
 	hrefBuf.WriteString("href=\"")
 	EscLink(&hrefBuf, dest)
@@ -518,7 +531,7 @@ func (r *Renderer) imageEnter(w io.Writer, image *ast.Image) {
 		return
 	}
 	src := image.Destination
-	src = AddAbsPrefix(src, r.Opts.AbsolutePrefix)
+	src = AddAbsPrefix(src, r.Opts.AbsoluteSitePrefix, r.Opts.AbsoluteDocumentPrefix)
 	attrs := BlockAttrs(image)
 	if r.Opts.Flags&LazyLoadImages != 0 {
 		attrs = append(attrs, `loading="lazy"`)

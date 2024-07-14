@@ -70,7 +70,7 @@ func doLinkTestsInline(t *testing.T, tests []string) {
 	doTestsInline(t, tests)
 
 	prefix := "http://localhost"
-	params := html.RendererOptions{AbsolutePrefix: prefix}
+	params := html.RendererOptions{AbsoluteSitePrefix: prefix}
 	transformTests := transformLinks(tests, prefix)
 	doTestsInlineParam(t, transformTests, TestParams{
 		RendererOptions: params,
@@ -87,7 +87,7 @@ func doSafeTestsInline(t *testing.T, tests []string) {
 	// All the links in this test should not have the prefix appended, so
 	// just rerun it with different parameters and the same expectations.
 	prefix := "http://localhost"
-	params := html.RendererOptions{AbsolutePrefix: prefix}
+	params := html.RendererOptions{AbsoluteSitePrefix: prefix}
 	transformTests := transformLinks(tests, prefix)
 	doTestsInlineParam(t, transformTests, TestParams{
 		Flags:           html.Safelink,
