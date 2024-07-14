@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"html"
 	"io"
-	"path"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -272,10 +272,14 @@ func isDocumentRelativeLink(link []byte) (yes bool) {
 
 func AddAbsPrefix(link []byte, sitePrefix, documentPrefix string) []byte {
 	if sitePrefix != "" && isSiteRelativeLink(link) {
-		return []byte(path.Join(sitePrefix, string(link)))
+		if s, err := url.JoinPath(sitePrefix, string(link)); err == nil {
+			return []byte(s)
+		}
 	}
 	if documentPrefix != "" && isDocumentRelativeLink(link) {
-		return []byte(path.Join(documentPrefix, string(link)))
+		if s, err := url.JoinPath(documentPrefix, string(link)); err == nil {
+			return []byte(s)
+		}
 	}
 	return link
 }
